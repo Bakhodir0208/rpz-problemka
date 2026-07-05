@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Проблемный отдел - РПЗ</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- ЗВУКИ (Web Audio API инициализируется при первом взаимодействии, но добавим настройки) -->
+        <div class="sound-control" id="soundToggle" title="Включить/выключить звук">
+            <span class="sound-icon">🔊</span>
+        </div>
+
+        <!-- 1. ЭКРАН АВТОРИЗАЦИИ -->
+        <section id="authScreen" class="screen active">
+            <div class="card auth-card">
+                <div class="logo-area">
+                    <h1>Проблемный отдел - РПЗ</h1>
+                </div>
+                
+                <form id="authForm" novalidate>
+                    <div class="input-group">
+                        <label for="employeeId">Введите ID сотрудника</label>
+                        <div class="input-wrapper">
+                            <input 
+                                type="text" 
+                                id="employeeId" 
+                                inputmode="numeric" 
+                                pattern="[0-9]*" 
+                                placeholder="Например: 1234" 
+                                required
+                                autocomplete="off"
+                            >
+                            <button type="button" class="clear-btn">&times;</button>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Войти в систему</button>
+                    <div id="authError" class="error-message"></div>
+                </form>
+            </div>
+        </section>
+
+        <!-- 2. ЭКРАН ВЫБОРА ЗОНЫ -->
+        <section id="zoneScreen" class="screen">
+            <div class="card select-card">
+                <div class="user-header">
+                    <span id="userInfo" class="user-info">Сотрудник: ...</span>
+                    <button id="logoutBtn" class="btn-text">Выйти</button>
+                </div>
+                <h2>Зона проблемки</h2>
+                <p class="subtitle">Выберите проблемную зону склада для начала фиксации</p>
+
+                <div class="zone-grid">
+                    <button class="zone-btn" data-zone="Позаказная">
+                        <span class="zone-icon">📦</span>
+                        <span class="zone-title">Позаказная</span>
+                        <span class="zone-desc">Проблемы сборки заказов</span>
+                    </button>
+                    <button class="zone-btn" data-zone="Потоварка">
+                        <span class="zone-icon">📥</span>
+                        <span class="zone-title">Потоварка</span>
+                        <span class="zone-desc">Штучный товар и хранение</span>
+                    </button>
+                    <button class="zone-btn" data-zone="Отгрузка">
+                        <span class="zone-icon">🚛</span>
+                        <span class="zone-title">Отгрузка</span>
+                        <span class="zone-desc">Контроль при отправке</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. ЭКРАН ФИКСАЦИИ ТОВАРОВ -->
+        <section id="loggingScreen" class="screen">
+            <div class="card log-card">
+                <!-- Шапка лог-экрана -->
+                <div class="log-header">
+                    <button id="backToZonesBtn" class="btn-back">⬅️ Назад к зонам</button>
+                    <span id="activeZoneBadge" class="zone-badge">Зона: ...</span>
+                </div>
+
+                <div class="user-sub-header">
+                    <span id="loggingUserInfo">...</span>
+                </div>
+
+                <form id="recordForm" novalidate data-flow-mode="standard">
+                    <!-- ============================================== -->
+                    <!-- СТАНДАРТНЫЙ РЕЖИМ (Потоварка / Отгрузка) -->
+                    <!-- ============================================== -->
+                    <div class="standard-only">
+                        <!-- Переключатель типа ввода -->
+                        <div class="input-type-selector">
+                            <button type="button" class="type-tab active" data-type="item">
+                                <span class="tab-icon">🏷️</span> ШК товара
+                            </button>
+                            <button type="button" class="type-tab" data-type="box">
+                                <span class="tab-icon">📦</span> Короб
+                            </button>
+                        </div>
+
+                        <!-- Поле штрих-кода -->
+                        <div class="input-group barcode-group" id="standardBarcodeGroup">
+                            <label for="barcodeInput" id="barcodeLabel">Штрих-код товара</label>
+                            <div class="input-wrapper">
+                                <input 
+                                    type="text" 
+                                    id="barcodeInput" 
+                                    inputmode="numeric" 
+                                    pattern="[0-9]*"
+                                    placeholder="Отсканируйте ШК товара..." 
+                                    required
+                                    autocomplete="off"
+                                >
+                                <button type="button" class="clear-btn">&times;</button>
+                            </div>
+                            <div id="barcodeError" class="error-message"></div>
+                        </div>
+
+                        <!-- Выбор проблемы (динамические кнопки) -->
+                        <div class="input-group">
+                            <label>Какая проблема?</label>
+                            <div id="problemsContainer" class="quick-options-grid">
+                                <!-- Будут отрендерены из js/конфига -->
+                                <button type="button" class="option-btn placeholder-btn">Загрузка...</button>
+                            </div>
+                        </div>
+
+                        <!-- Количество товара -->
+                        <div class="input-group qty-group">
+                            <label for="qtyInput">Количество</label>
+                            <div class="qty-control">
+                                <button type="button" id="qtyMinus" class="qty-btn">–</button>
+                                <input 
+                                    type="number" 
+                                    id="qtyInput" 
+                                    min="1" 
+                                    value="1" 
+                                    required
+                                    inputmode="numeric"
+                                >
+                                <button type="button" id="qtyPlus" class="qty-btn">+</button>
+                            </div>
+                        </div>
+
+                        <!-- Выбор решения / кнопки отправки -->
+                        <div class="input-group">
+                            <label>Что сделали с товаром? (Выберите решение для отправки)</label>
+                            <div id="actionsContainer" class="actions-grid">
+                                <!-- Будут отрендерены из js/конфига -->
+                                <button type="button" class="action-submit-btn placeholder-btn">Загрузка...</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ============================================== -->
+                    <!-- РЕЖИМ ПОТОВАРКА (ШК товара + Короб) -->
+                    <!-- ============================================== -->
+                    <div class="potovarka-only">
+                        <!-- Поле: ШК товара -->
+                        <div class="input-group barcode-group" id="potovarkaItemGroup">
+                            <label for="potovarkaItemInput">Штрих-код товара</label>
+                            <div class="input-wrapper">
+                                <input 
+                                    type="text" 
+                                    id="potovarkaItemInput" 
+                                    inputmode="numeric" 
+                                    pattern="[0-9]*"
+                                    placeholder="Отсканируйте ШК товара..." 
+                                    required
+                                    autocomplete="off"
+                                >
+                                <button type="button" class="clear-btn">&times;</button>
+                            </div>
+                            <div id="potovarkaItemError" class="error-message"></div>
+                        </div>
+
+                        <!-- Поле: Короб -->
+                        <div class="input-group box-group" id="potovarkaBoxGroup">
+                            <label for="potovarkaBoxInput">Короб</label>
+                            <div class="input-wrapper" style="display: flex; gap: 8px;">
+                                <div style="position: relative; flex: 1;">
+                                    <input 
+                                        type="text" 
+                                        id="potovarkaBoxInput" 
+                                        placeholder="Отсканируйте короб..." 
+                                        required
+                                        autocomplete="off"
+                                        style="width: 100%;"
+                                    >
+                                    <button type="button" class="clear-btn">&times;</button>
+                                </div>
+                                <button type="button" id="potovarkaNoBoxBtn" class="btn btn-secondary" style="padding: 16px; font-size: 14px; font-weight: 700; white-space: nowrap; border-radius: var(--border-radius-md); cursor: pointer; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.02); height: 56px; display: flex; align-items: center; justify-content: center; color: var(--text-color);">Без короба</button>
+                            </div>
+                            <div id="potovarkaBoxError" class="error-message"></div>
+                        </div>
+
+                        <!-- Количество товара -->
+                        <div class="input-group qty-group">
+                            <label for="potovarkaQtyInput">Количество</label>
+                            <div class="qty-control">
+                                <button type="button" id="potovarkaQtyMinus" class="qty-btn">–</button>
+                                <input 
+                                    type="number" 
+                                    id="potovarkaQtyInput" 
+                                    min="1" 
+                                    value="1" 
+                                    required
+                                    inputmode="numeric"
+                                >
+                                <button type="button" id="potovarkaQtyPlus" class="qty-btn">+</button>
+                            </div>
+                        </div>
+
+                        <!-- Выбор проблемы (динамические кнопки) -->
+                        <div class="input-group">
+                            <label>Какая проблема?</label>
+                            <div id="potovarkaProblemsContainer" class="quick-options-grid">
+                                <!-- Будут отрендерены из js/конфига -->
+                                <button type="button" class="option-btn placeholder-btn">Загрузка...</button>
+                            </div>
+                        </div>
+
+                        <!-- Выбор решения / кнопки отправки -->
+                        <div class="input-group">
+                            <label>Что сделали с товаром? (Выберите решение для отправки)</label>
+                            <div id="potovarkaActionsContainer" class="actions-grid">
+                                <!-- Будут отрендерены из js/конфига -->
+                                <button type="button" class="action-submit-btn placeholder-btn">Загрузка...</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ============================================== -->
+                    <!-- РЕЖИМ ОТГРУЗКА (ШК товара) -->
+                    <!-- ============================================== -->
+                    <div class="otgruzka-only">
+                        <!-- Поле: ШК товара -->
+                        <div class="input-group barcode-group" id="otgruzkaItemGroup">
+                            <label for="otgruzkaItemInput">Штрих-код товара</label>
+                            <div class="input-wrapper">
+                                <input 
+                                    type="text" 
+                                    id="otgruzkaItemInput" 
+                                    inputmode="numeric" 
+                                    pattern="[0-9]*"
+                                    placeholder="Отсканируйте ШК товара..." 
+                                    required
+                                    autocomplete="off"
+                                >
+                                <button type="button" class="clear-btn">&times;</button>
+                            </div>
+                            <div id="otgruzkaItemError" class="error-message"></div>
+                        </div>
+
+                        <!-- Количество товара -->
+                        <div class="input-group qty-group">
+                            <label for="otgruzkaQtyInput">Количество</label>
+                            <div class="qty-control">
+                                <button type="button" id="otgruzkaQtyMinus" class="qty-btn">–</button>
+                                <input 
+                                    type="number" 
+                                    id="otgruzkaQtyInput" 
+                                    min="1" 
+                                    value="1" 
+                                    required
+                                    inputmode="numeric"
+                                >
+                                <button type="button" id="otgruzkaQtyPlus" class="qty-btn">+</button>
+                            </div>
+                        </div>
+
+                        <!-- Выбор проблемы (динамические кнопки) -->
+                        <div class="input-group">
+                            <label>Какая проблема?</label>
+                            <div id="otgruzkaProblemsContainer" class="quick-options-grid">
+                                <!-- Будут отрендерены из js/конфига -->
+                                <button type="button" class="option-btn placeholder-btn">Загрузка...</button>
+                            </div>
+                        </div>
+
+                        <!-- Выбор решения / кнопки отправки -->
+                        <div class="input-group">
+                            <label>Что сделали с товаром? (Выберите решение для отправки)</label>
+                            <div id="otgruzkaActionsContainer" class="actions-grid">
+                                <!-- Будут отрендерены из js/конфига -->
+                                <button type="button" class="action-submit-btn placeholder-btn">Загрузка...</button>
+                            </div>
+                        </div>
+
+                        <!-- Дополнительные поля (появляются при выборе решения "Решено") -->
+                        <div id="otgruzkaExtraInputs" class="extra-inputs-panel" style="display: none; margin-top: 20px; padding: 20px; background: rgba(255, 255, 255, 0.03); border-radius: var(--border-radius-lg); border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);">
+                            <h4 style="margin-top: 0; margin-bottom: 12px; color: var(--text-color); font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                                📝 Дополнительные данные <span style="font-size: 12px; font-weight: normal; color: var(--text-muted);">(Заполните одно из полей)</span>
+                            </h4>
+                            
+                            <!-- Номер заказа -->
+                            <div class="input-group" id="otgruzkaOrderGroup" style="margin-bottom: 15px;">
+                                <label for="otgruzkaOrderInput">Номер заказа</label>
+                                <div class="input-wrapper">
+                                    <input 
+                                        type="text" 
+                                        id="otgruzkaOrderInput" 
+                                        placeholder="Введите номер заказа" 
+                                        autocomplete="off"
+                                    >
+                                    <button type="button" class="clear-btn">&times;</button>
+                                </div>
+                                <div id="otgruzkaOrderError" class="error-message"></div>
+                            </div>
+
+                            <!-- Номер ГМ -->
+                            <div class="input-group" id="otgruzkaGmGroup" style="margin-bottom: 0;">
+                                <label for="otgruzkaGmInput">Номер ГМ</label>
+                                <div class="input-wrapper">
+                                    <input 
+                                        type="text" 
+                                        id="otgruzkaGmInput" 
+                                        placeholder="Введите номер ГМ" 
+                                        autocomplete="off"
+                                    >
+                                    <button type="button" class="clear-btn">&times;</button>
+                                </div>
+                                <div id="otgruzkaGmError" class="error-message"></div>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <!-- ============================================== -->
+                    <!-- РЕЖИМ ПОЗАКАЗНАЯ: ОКНО ПРИЁМКИ (Step 1) -->
+                    <!-- ============================================== -->
+                    <div class="by-order-acceptance-only">
+                        <h3 class="step-title">Окно приёмки</h3>
+                        <p class="step-subtitle">Отсканируйте короб, товар и введите номер заказа</p>
+
+                        <!-- Поле: Короб -->
+                        <div class="input-group box-group" id="byOrderBoxGroup">
+                            <label for="byOrderBoxInput">Короб</label>
+                            <div class="input-wrapper">
+                                <input 
+                                    type="text" 
+                                    id="byOrderBoxInput" 
+                                    placeholder="Отсканируйте короб" 
+                                    required
+                                    autocomplete="off"
+                                >
+                                <button type="button" class="clear-btn">&times;</button>
+                            </div>
+                            <div id="byOrderBoxError" class="error-message"></div>
+                        </div>
+
+                        <!-- Поле: Товар -->
+                        <div class="input-group item-group" id="byOrderItemGroup">
+                            <label for="byOrderItemInput">Штрих-код товара</label>
+                            <div class="input-wrapper">
+                                <input 
+                                    type="text" 
+                                    id="byOrderItemInput" 
+                                    inputmode="numeric" 
+                                    pattern="[0-9]*"
+                                    placeholder="Отсканируйте ШК товара" 
+                                    required
+                                    autocomplete="off"
+                                >
+                                <button type="button" class="clear-btn">&times;</button>
+                            </div>
+                            <div id="byOrderItemError" class="error-message"></div>
+                        </div>
+
+                        <!-- Поле: Номер заказа -->
+                        <div class="input-group order-group" id="byOrderOrderGroup">
+                            <label for="byOrderOrderInput">Номер заказа</label>
+                            <div class="input-wrapper">
+                                <input 
+                                    type="text" 
+                                    id="byOrderOrderInput" 
+                                    inputmode="numeric"
+                                    placeholder="Введите или отсканируйте номер заказа" 
+                                    required
+                                    autocomplete="off"
+                                >
+                                <button type="button" class="clear-btn">&times;</button>
+                            </div>
+                            <div id="byOrderOrderError" class="error-message"></div>
+                        </div>
+
+                        <!-- Количество товара -->
+                        <div class="input-group qty-group">
+                            <label for="byOrderQtyInput">Количество</label>
+                            <div class="qty-control">
+                                <button type="button" id="byOrderQtyMinus" class="qty-btn">–</button>
+                                <input 
+                                    type="number" 
+                                    id="byOrderQtyInput" 
+                                    min="1" 
+                                    value="1" 
+                                    required
+                                    inputmode="numeric"
+                                >
+                                <button type="button" id="byOrderQtyPlus" class="qty-btn">+</button>
+                            </div>
+                        </div>
+
+                        <!-- Кнопка Добавить товар -->
+                        <button type="button" id="byOrderAddItemBtn" class="btn btn-secondary" style="width: 100%; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; font-size: 16px; padding: 14px 10px;">
+                            ➕ Добавить товар
+                        </button>
+
+                        <!-- Список добавленных ШК -->
+                        <div id="byOrderItemsListGroup" class="input-group hidden" style="margin-bottom: 20px;">
+                            <label>Добавленные товары в коробе:</label>
+                            <div id="byOrderItemsList" class="added-items-list">
+                                <!-- Будут добавлены динамически -->
+                            </div>
+                        </div>
+
+                        <button type="button" id="byOrderNextBtn" class="btn btn-primary btn-block" disabled>Далее</button>
+                    </div>
+
+                    <!-- ============================================== -->
+                    <!-- РЕЖИМ ПОЗАКАЗНАЯ: ОКНО РЕШЕНИЯ (Step 2) -->
+                    <!-- ============================================== -->
+                    <div class="by-order-decision-only">
+                        <div class="summary-card">
+                            <h3 class="step-title">Окно решения</h3>
+                            <div class="summary-details" style="display: flex; flex-direction: column; gap: 12px;">
+                                <div class="summary-item">
+                                    <span class="summary-label">📦 Короб:</span>
+                                    <span id="summaryBox" class="summary-value">-</span>
+                                </div>
+                                <div class="summary-item" style="border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 10px;">
+                                    <span class="summary-label">🛒 Список товаров в коробе:</span>
+                                    <div id="summaryItemsList" style="margin-top: 8px; display: flex; flex-direction: column; gap: 6px; font-size: 14px;">
+                                        <!-- Будут добавлены динамически -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Выбор проблемы (динамические кнопки) -->
+                        <div class="input-group">
+                            <label>Какая проблема?</label>
+                            <div id="byOrderProblemsContainer" class="quick-options-grid">
+                                <!-- Будут отрендерены из js/конфига -->
+                                <button type="button" class="option-btn placeholder-btn">Загрузка...</button>
+                            </div>
+                        </div>
+
+                        <!-- Выбор решения / кнопки отправки -->
+                        <div class="input-group">
+                            <label>Что сделали с товаром? (Выберите решение для отправки)</label>
+                            <div id="byOrderActionsContainer" class="actions-grid">
+                                <!-- Будут отрендерены из js/конфига -->
+                                <button type="button" class="action-submit-btn placeholder-btn">Загрузка...</button>
+                            </div>
+                        </div>
+
+                        <button type="button" id="byOrderBackBtn" class="btn-back" style="margin-top: 16px; justify-content: center; width: 100%;">⬅️ Назад к приёмке</button>
+                    </div>
+                </form>
+
+                <!-- Статус последней операции -->
+                <div id="statusAlert" class="status-alert">
+                    <span class="status-text">Готов к работе</span>
+                </div>
+
+                <!-- Лог последних отсканированных товаров -->
+                <div class="history-section">
+                    <h3>Последние записи сотрудника</h3>
+                    <div id="historyList" class="history-list">
+                        <div class="history-empty">Здесь будут отображаться отсканированные вами товары</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- ОКНО ПОДТВЕРЖДЕНИЯ (MODAL) -->
+    <div id="confirmModal" class="modal-overlay">
+        <div class="modal-card">
+            <h2 style="font-family: var(--font-display); font-size: 24px; margin-bottom: 8px;">Подтверждение</h2>
+            <p style="font-size: 15px; color: var(--text-muted); margin-bottom: 20px;">Пожалуйста, проверьте правильность данных перед отправкой:</p>
+            
+            <div class="confirm-summary">
+                <div class="confirm-row">
+                    <span class="confirm-label">📍 Зона:</span>
+                    <span id="confirmZone" class="confirm-value">-</span>
+                </div>
+                <div class="confirm-row">
+                    <span class="confirm-label">📦 Короб:</span>
+                    <span id="confirmBox" class="confirm-value">-</span>
+                </div>
+                <div class="confirm-row" id="confirmItemRow">
+                    <span class="confirm-label">🏷️ Товар:</span>
+                    <span id="confirmItem" class="confirm-value">-</span>
+                </div>
+                <div class="confirm-row" id="confirmOrderRow">
+                    <span class="confirm-label">🛒 Заказ:</span>
+                    <span id="confirmOrder" class="confirm-value">-</span>
+                </div>
+                <div class="confirm-row" id="confirmGmRow">
+                    <span class="confirm-label">📦 Номер ГМ:</span>
+                    <span id="confirmGm" class="confirm-value">-</span>
+                </div>
+                <div class="confirm-row" id="confirmQtyRow">
+                    <span class="confirm-label">🔢 Количество:</span>
+                    <span id="confirmQty" class="confirm-value">1</span>
+                </div>
+                
+                <!-- Список нескольких товаров (для позаказки) -->
+                <div id="confirmItemsListRow" class="confirm-row-list hidden" style="display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); padding-bottom: 8px;">
+                    <span class="confirm-label" style="align-self: flex-start;">🏷️ Список товаров в коробе:</span>
+                    <div id="confirmItemsList" style="display: flex; flex-direction: column; gap: 6px; max-height: 120px; overflow-y: auto; background: rgba(255,255,255,0.02); padding: 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05); font-size: 13px; text-align: left;">
+                        <!-- Будет заполнено динамически -->
+                    </div>
+                </div>
+
+                <div class="confirm-row">
+                    <span class="confirm-label">💥 Проблема:</span>
+                    <span id="confirmProblem" class="confirm-value">-</span>
+                </div>
+                <div class="confirm-row">
+                    <span class="confirm-label">⚙️ Решение:</span>
+                    <span id="confirmAction" class="confirm-value">-</span>
+                </div>
+            </div>
+            
+            <div class="modal-actions">
+                <button type="button" id="confirmCancelBtn" class="btn btn-secondary" style="padding: 16px; font-size: 16px; font-weight: 700; border-radius: var(--border-radius-md); cursor: pointer;">Отмена</button>
+                <button type="button" id="confirmSubmitBtn" class="btn btn-primary" style="padding: 16px; font-size: 16px; font-weight: 700; border-radius: var(--border-radius-md); cursor: pointer; background: var(--primary-color); border: none; color: #ffffff;">Отправить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Подключаем API скрипты -->
+    <script src="app.js"></script>
+</body>
+</html>
