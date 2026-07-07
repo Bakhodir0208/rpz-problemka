@@ -338,9 +338,17 @@
                         <h3 class="step-title">Окно приёмки</h3>
                         <p class="step-subtitle">Отсканируйте короб, товар и введите номер заказа</p>
 
+                        <!-- Под-режимы внутри Позаказной -->
+                        <div class="pozakaznaya-subtypes">
+                            <button type="button" class="subtype-btn active" data-subtype="Сборка">Сборка</button>
+                            <button type="button" class="subtype-btn" data-subtype="Сортировка 1">Сорт. 1</button>
+                            <button type="button" class="subtype-btn" data-subtype="Сортировка 2">Сорт. 2</button>
+                            <button type="button" class="subtype-btn" data-subtype="Упаковка">Упаковка</button>
+                        </div>
+
                         <!-- Поле: Короб -->
                         <div class="input-group box-group" id="byOrderBoxGroup">
-                            <label for="byOrderBoxInput">Короб</label>
+                            <label for="byOrderBoxInput" id="byOrderBoxLabel">Короб</label>
                             <div class="input-wrapper">
                                 <input 
                                     type="text" 
@@ -430,11 +438,11 @@
                             <h3 class="step-title">Окно решения</h3>
                             <div class="summary-details" style="display: flex; flex-direction: column; gap: 12px;">
                                 <div class="summary-item">
-                                    <span class="summary-label">📦 Короб:</span>
+                                    <span class="summary-label" id="summaryBoxLabel">📦 Короб:</span>
                                     <span id="summaryBox" class="summary-value">-</span>
                                 </div>
                                 <div class="summary-item" style="border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 10px;">
-                                    <span class="summary-label">🛒 Список товаров в коробе:</span>
+                                    <span class="summary-label" id="summaryItemsLabel">🛒 Список товаров в коробе:</span>
                                     <div id="summaryItemsList" style="margin-top: 8px; display: flex; flex-direction: column; gap: 6px; font-size: 14px;">
                                         <!-- Будут добавлены динамически -->
                                     </div>
@@ -492,7 +500,7 @@
                     <span id="confirmZone" class="confirm-value">-</span>
                 </div>
                 <div class="confirm-row">
-                    <span class="confirm-label">📦 Короб:</span>
+                    <span class="confirm-label" id="confirmBoxLabel">📦 Короб:</span>
                     <span id="confirmBox" class="confirm-value">-</span>
                 </div>
                 <div class="confirm-row" id="confirmItemRow">

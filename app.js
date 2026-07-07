@@ -14,6 +14,7 @@ const CONFIG = {
 // --- СОСТОЯНИЕ ПРИЛОЖЕНИЯ ---
 let currentUser = null;
 let currentZone = null;
+let currentPozakaznayaSubtype = 'Сборка';
 let currentInputType = 'item'; // 'item' или 'box'
 let selectedProblem = null;
 let soundEnabled = true;
@@ -63,10 +64,10 @@ function playSound(type) {
     try {
         const ctx = getAudioContext();
         const t = ctx.currentTime;
-        
+
         if (type === 'success') {
             // Эмуляция фирменного двойного колокольчика Apple Pay (C6 -> E6)
-            
+
             // Первый писк (C6)
             const osc1 = ctx.createOscillator();
             const gain1 = ctx.createGain();
@@ -78,7 +79,7 @@ function playSound(type) {
             gain1.connect(ctx.destination);
             osc1.start(t);
             osc1.stop(t + 0.12);
-            
+
             // Второй писк с задержкой 60мс (E6)
             const osc2 = ctx.createOscillator();
             const gain2 = ctx.createGain();
@@ -90,10 +91,10 @@ function playSound(type) {
             gain2.connect(ctx.destination);
             osc2.start(t + 0.06);
             osc2.stop(t + 0.22);
-            
+
         } else if (type === 'error') {
             // Эмуляция приятного, но отчетливого двойного сигнала ошибки (beep-beep) в стиле iOS
-            
+
             // Первый сигнал (D5)
             const osc1 = ctx.createOscillator();
             const gain1 = ctx.createGain();
@@ -105,7 +106,7 @@ function playSound(type) {
             gain1.connect(ctx.destination);
             osc1.start(t);
             osc1.stop(t + 0.08);
-            
+
             // Второй сигнал через 100мс (D5)
             const osc2 = ctx.createOscillator();
             const gain2 = ctx.createGain();
@@ -140,12 +141,12 @@ function initSound() {
         soundEnabled = false;
         soundToggle.classList.add('muted');
     }
-    
+
     soundToggle.addEventListener('click', () => {
         soundEnabled = !soundEnabled;
         localStorage.setItem('sound_enabled', soundEnabled);
         soundToggle.classList.toggle('muted', !soundEnabled);
-        
+
         // Тестовый писк для активации аудиоконтекста в браузере
         if (soundEnabled) {
             playSound('success');
@@ -166,7 +167,7 @@ function initSettingsTrigger() {
 function configureApiUrl() {
     const currentUrl = localStorage.getItem('google_script_api_url') || '';
     const newUrl = prompt('Введите URL веб-приложения Google Apps Script (оставьте пустым для демо-режима):', currentUrl);
-    
+
     if (newUrl !== null) {
         const cleanUrl = newUrl.trim();
         if (cleanUrl) {
@@ -230,7 +231,7 @@ function showScreen(screenId) {
     });
     const activeScreen = document.getElementById(screenId);
     activeScreen.classList.add('active');
-    
+
     // Автофокус на поле штрих-кода
     if (screenId === 'loggingScreen') {
         setTimeout(focusBarcode, 300);
@@ -263,7 +264,7 @@ function setupEventListeners() {
     document.getElementById('confirmCancelBtn').addEventListener('click', () => {
         closeConfirmModal();
     });
-    
+
     document.getElementById('confirmSubmitBtn').addEventListener('click', () => {
         if (pendingSubmitAction) {
             submitRecord(pendingSubmitAction, true);
@@ -272,7 +273,7 @@ function setupEventListeners() {
 
     // 1. Форма входа
     document.getElementById('authForm').addEventListener('submit', handleLogin);
-    
+
     // Выход из системы
     document.getElementById('logoutBtn').addEventListener('click', () => {
         localStorage.removeItem('warehouse_user');
@@ -286,7 +287,7 @@ function setupEventListeners() {
             const button = e.currentTarget;
             currentZone = button.getAttribute('data-zone');
             document.getElementById('activeZoneBadge').textContent = `Зона: ${currentZone}`;
-            
+
             const recordForm = document.getElementById('recordForm');
             if (currentZone === 'Позаказная') {
                 recordForm.setAttribute('data-flow-mode', 'by-order-acceptance');
@@ -301,7 +302,7 @@ function setupEventListeners() {
                 recordForm.setAttribute('data-flow-mode', 'standard');
                 resetLoggingForm();
             }
-            
+
             showScreen('loggingScreen');
             loadHistory();
             renderConfigOptions();
@@ -323,7 +324,7 @@ function setupEventListeners() {
             typeTabs.forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
             currentInputType = tab.getAttribute('data-type');
-            
+
             // Настройка полей под выбранный режим
             if (currentInputType === 'item') {
                 barcodeLabel.textContent = 'Штрих-код товара';
@@ -339,7 +340,7 @@ function setupEventListeners() {
                 barcodeInput.setAttribute('inputmode', 'text');
                 barcodeInput.removeAttribute('pattern');
             }
-            
+
             clearBarcodeError();
             focusBarcode();
         });
@@ -387,6 +388,41 @@ function setupEventListeners() {
     const byOrderNextBtn = document.getElementById('byOrderNextBtn');
     const byOrderBackBtn = document.getElementById('byOrderBackBtn');
 
+    // Под-режимы Позаказной (Сборка / Сорт. 1 / Сорт. 2 / Упаковка)
+    const subtypeBtns = document.querySelectorAll('.subtype-btn');
+    const byOrderBoxLabel = document.getElementById('byOrderBoxLabel');
+    subtypeBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            subtypeBtns.forEach(b => b.classList.remove('active'));
+            e.currentTarget.classList.add('active');
+            currentPozakaznayaSubtype = e.currentTarget.getAttribute('data-subtype');
+
+            // Сброс ошибок при переключении
+            document.getElementById('byOrderBoxGroup').classList.remove('invalid');
+            document.getElementById('byOrderBoxError').textContent = '';
+
+            const summaryBoxLabel = document.getElementById('summaryBoxLabel');
+            const summaryItemsLabel = document.getElementById('summaryItemsLabel');
+            const confirmBoxLabel = document.getElementById('confirmBoxLabel');
+
+            if (currentPozakaznayaSubtype === 'Упаковка') {
+                if (byOrderBoxLabel) byOrderBoxLabel.textContent = 'Номер ячейки';
+                byOrderBoxInput.placeholder = 'Введите или отсканируйте номер ячейки';
+                if (summaryBoxLabel) summaryBoxLabel.textContent = '📦 Ячейка:';
+                if (summaryItemsLabel) summaryItemsLabel.textContent = '🛒 Список товаров в ячейке:';
+                if (confirmBoxLabel) confirmBoxLabel.textContent = '📦 Ячейка:';
+            } else {
+                if (byOrderBoxLabel) byOrderBoxLabel.textContent = 'Короб';
+                byOrderBoxInput.placeholder = 'Отсканируйте короб';
+                if (summaryBoxLabel) summaryBoxLabel.textContent = '📦 Короб:';
+                if (summaryItemsLabel) summaryItemsLabel.textContent = '🛒 Список товаров в коробе:';
+                if (confirmBoxLabel) confirmBoxLabel.textContent = '📦 Короб:';
+            }
+
+            checkByOrderInputsValidity();
+        });
+    });
+
     // Очистка индивидуальных ошибок при наборе текста
     byOrderBoxInput.addEventListener('input', () => {
         document.getElementById('byOrderBoxGroup').classList.remove('invalid');
@@ -401,6 +437,11 @@ function setupEventListeners() {
     });
 
     byOrderOrderInput.addEventListener('input', () => {
+        // Автоматическая смена раскладки клавиатуры с русской на английскую
+        const converted = convertCyrillicToLatinLayout(byOrderOrderInput.value);
+        if (converted !== byOrderOrderInput.value) {
+            byOrderOrderInput.value = converted;
+        }
         document.getElementById('byOrderOrderGroup').classList.remove('invalid');
         document.getElementById('byOrderOrderError').textContent = '';
         checkByOrderInputsValidity();
@@ -410,11 +451,19 @@ function setupEventListeners() {
     byOrderBoxInput.addEventListener('blur', () => {
         const val = byOrderBoxInput.value.trim();
         if (val !== '') {
-            const isValid = val.startsWith('80-') && val.length >= 4;
+            let isValid = false;
+            let errorMsg = '';
+            if (currentPozakaznayaSubtype === 'Упаковка') {
+                isValid = /^\d+\.\d+\.\d+\.\d+$/.test(val);
+                errorMsg = 'Номер ячейки введен не правильно';
+            } else {
+                isValid = val.startsWith('80-') && val.length === 13;
+                errorMsg = 'ШК короба введен не правильно';
+            }
             if (!isValid) {
                 playSound('error');
                 document.getElementById('byOrderBoxGroup').classList.add('invalid');
-                document.getElementById('byOrderBoxError').textContent = 'ШК короба введен не правильно';
+                document.getElementById('byOrderBoxError').textContent = errorMsg;
             }
         }
     });
@@ -434,7 +483,7 @@ function setupEventListeners() {
     byOrderOrderInput.addEventListener('blur', () => {
         const val = byOrderOrderInput.value.trim();
         if (val !== '') {
-            const isValid = val.startsWith('10-') && val.length >= 4;
+            const isValid = validateOrderFormat(val);
             if (!isValid) {
                 playSound('error');
                 document.getElementById('byOrderOrderGroup').classList.add('invalid');
@@ -448,7 +497,15 @@ function setupEventListeners() {
         if (e.key === 'Enter') {
             e.preventDefault();
             const val = e.target.value.trim();
-            const isValid = val.startsWith('80-') && val.length >= 4;
+            let isValid = false;
+            let errorMsg = '';
+            if (currentPozakaznayaSubtype === 'Упаковка') {
+                isValid = /^\d+\.\d+\.\d+\.\d+$/.test(val);
+                errorMsg = 'Номер ячейки введен не правильно';
+            } else {
+                isValid = val.startsWith('80-') && val.length === 13;
+                errorMsg = 'ШК короба введен не правильно';
+            }
             if (isValid) {
                 playSound('success');
                 e.target.style.borderColor = 'var(--success-color)';
@@ -457,7 +514,7 @@ function setupEventListeners() {
             } else {
                 playSound('error');
                 document.getElementById('byOrderBoxGroup').classList.add('invalid');
-                document.getElementById('byOrderBoxError').textContent = 'ШК короба введен не правильно';
+                document.getElementById('byOrderBoxError').textContent = errorMsg;
             }
             checkByOrderInputsValidity();
         }
@@ -486,7 +543,7 @@ function setupEventListeners() {
         if (e.key === 'Enter') {
             e.preventDefault();
             const val = e.target.value.trim();
-            const isValid = val.startsWith('10-') && val.length >= 4;
+            const isValid = validateOrderFormat(val);
             if (isValid) {
                 e.target.style.borderColor = 'var(--success-color)';
                 setTimeout(() => e.target.style.borderColor = '', 400);
@@ -576,7 +633,7 @@ function setupEventListeners() {
     potovarkaBoxInput.addEventListener('blur', () => {
         const val = potovarkaBoxInput.value.trim();
         if (val !== '') {
-            const isValid = (val.startsWith('80-') && val.length >= 4) || val === 'Короб не определен';
+            const isValid = (val.startsWith('80-') && val.length === 13) || val === 'Короб не определен';
             if (!isValid) {
                 playSound('error');
                 document.getElementById('potovarkaBoxGroup').classList.add('invalid');
@@ -607,7 +664,7 @@ function setupEventListeners() {
         if (e.key === 'Enter') {
             e.preventDefault();
             const val = e.target.value.trim();
-            const isValid = (val.startsWith('80-') && val.length >= 4) || val === 'Короб не определен';
+            const isValid = (val.startsWith('80-') && val.length === 13) || val === 'Короб не определен';
             if (isValid) {
                 playSound('success');
                 e.target.style.borderColor = 'var(--success-color)';
@@ -649,6 +706,11 @@ function setupEventListeners() {
     });
 
     otgruzkaOrderInput.addEventListener('input', () => {
+        // Автоматическая смена раскладки клавиатуры с русской на английскую
+        const converted = convertCyrillicToLatinLayout(otgruzkaOrderInput.value);
+        if (converted !== otgruzkaOrderInput.value) {
+            otgruzkaOrderInput.value = converted;
+        }
         document.getElementById('otgruzkaOrderGroup').classList.remove('invalid');
         document.getElementById('otgruzkaOrderError').textContent = '';
         document.getElementById('otgruzkaGmGroup').classList.remove('invalid');
@@ -677,11 +739,11 @@ function setupEventListeners() {
     otgruzkaOrderInput.addEventListener('blur', () => {
         const val = otgruzkaOrderInput.value.trim();
         if (val !== '') {
-            const isValid = val.startsWith('10-') && val.length >= 4;
+            const isValid = validateOrderFormat(val);
             if (!isValid) {
                 playSound('error');
                 document.getElementById('otgruzkaOrderGroup').classList.add('invalid');
-                document.getElementById('otgruzkaOrderError').textContent = 'Формат заказа неверный (должен начинаться на 10-)';
+                document.getElementById('otgruzkaOrderError').textContent = 'Формат заказа неверный (должен начинаться на 10- и не содержать русские буквы)';
             }
         }
     });
@@ -745,8 +807,8 @@ function validateBarcode() {
             return false;
         }
     } else {
-        // Условие: строго начинается на 80-
-        if (!value.startsWith('80-') || value.length < 4) {
+        // Условие: строго начинается на 80- и содержит 13 символов
+        if (!value.startsWith('80-') || value.length !== 13) {
             group.classList.add('invalid');
             errorEl.textContent = 'ШК короба введен не правильно';
             return false;
@@ -762,27 +824,57 @@ function clearBarcodeError() {
     if (errorEl) errorEl.textContent = '';
 }
 
+// --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ НОМЕРА ЗАКАЗА ---
+function convertCyrillicToLatinLayout(text) {
+    const map = {
+        'Й': 'Q', 'Ц': 'W', 'У': 'E', 'К': 'R', 'Е': 'T', 'Н': 'Y', 'Г': 'U', 'Ш': 'I', 'Щ': 'O', 'З': 'P', 'Х': '[', 'Ъ': ']',
+        'Ф': 'A', 'Ы': 'S', 'В': 'D', 'А': 'F', 'П': 'G', 'Р': 'H', 'О': 'J', 'Л': 'K', 'Д': 'L', 'Ж': ';', 'Э': "'",
+        'Я': 'Z', 'Ч': 'X', 'С': 'C', 'М': 'V', 'И': 'B', 'Т': 'N', 'Ь': 'M', 'Б': ',', 'Ю': '.',
+        'й': 'q', 'ц': 'w', 'у': 'e', 'к': 'r', 'е': 't', 'н': 'y', 'г': 'u', 'ш': 'i', 'щ': 'o', 'з': 'p', 'х': '[', 'ъ': ']',
+        'ф': 'a', 'ы': 's', 'в': 'd', 'а': 'f', 'п': 'g', 'р': 'h', 'о': 'j', 'л': 'k', 'д': 'l', 'ж': ';', 'э': "'",
+        'я': 'z', 'ч': 'x', 'с': 'c', 'м': 'v', 'и': 'b', 'т': 'n', 'ь': 'm', 'б': ',', 'ю': '.'
+    };
+    return text.split('').map(char => map[char] || char).join('');
+}
+
+function validateOrderFormat(val) {
+    // 1. Должен начинаться на 10- и быть длиной не менее 4 символов
+    if (!val.startsWith('10-') || val.length < 4) {
+        return false;
+    }
+    // 2. Не должен содержать кириллицу (если буквы есть, они должны быть английскими)
+    if (/[а-яА-ЯёЁ]/.test(val)) {
+        return false;
+    }
+    return true;
+}
+
 // --- ВАЛИДАЦИЯ И ПЕРЕХОДЫ ДЛЯ ЗОНЫ ПОЗАКАЗНАЯ ---
 function checkByOrderInputsValidity() {
     const boxInput = document.getElementById('byOrderBoxInput');
     const itemInput = document.getElementById('byOrderItemInput');
     const orderInput = document.getElementById('byOrderOrderInput');
-    
+
     const boxVal = boxInput.value.trim();
     const itemVal = itemInput.value.trim();
     const orderVal = orderInput.value.trim();
-    
-    const isBoxValid = boxVal.startsWith('80-') && boxVal.length >= 4;
+
+    let isBoxValid = false;
+    if (currentPozakaznayaSubtype === 'Упаковка') {
+        isBoxValid = /^\d+\.\d+\.\d+\.\d+$/.test(boxVal);
+    } else {
+        isBoxValid = boxVal.startsWith('80-') && boxVal.length === 13;
+    }
     const isItemValid = /^\d{13}$/.test(itemVal);
-    const isOrderValid = orderVal.startsWith('10-') && orderVal.length >= 4;
-    
+    const isOrderValid = validateOrderFormat(orderVal);
+
     const nextBtn = document.getElementById('byOrderNextBtn');
     if (nextBtn) {
         const hasAddedItems = addedItems.length > 0;
         const currentInputsValid = isItemValid && isOrderValid;
         nextBtn.disabled = !(isBoxValid && (hasAddedItems || currentInputsValid));
     }
-    
+
     return { isBoxValid, isItemValid, isOrderValid };
 }
 
@@ -790,26 +882,26 @@ function goToByOrderDecision() {
     const boxVal = document.getElementById('byOrderBoxInput').value.trim();
     const itemInput = document.getElementById('byOrderItemInput');
     const orderInput = document.getElementById('byOrderOrderInput');
-    
+
     const itemVal = itemInput.value.trim();
     const orderVal = orderInput.value.trim();
-    
+
     // Если в полях ввода лежат корректные данные, автоматически добавляем их в список
     const isItemValid = /^\d{13}$/.test(itemVal);
-    const isOrderValid = orderVal.startsWith('10-') && orderVal.length >= 4;
+    const isOrderValid = validateOrderFormat(orderVal);
     if (isItemValid && isOrderValid) {
         addCurrentItemToList();
     }
-    
+
     if (addedItems.length === 0) {
         playSound('error');
         updateStatus('Добавьте хотя бы один товар в короб!', 'error');
         return;
     }
-    
+
     // Заполняем сводку
     document.getElementById('summaryBox').textContent = boxVal;
-    
+
     // Заполняем список товаров в сводке решения
     const summaryList = document.getElementById('summaryItemsList');
     summaryList.innerHTML = '';
@@ -823,10 +915,10 @@ function goToByOrderDecision() {
         `;
         summaryList.appendChild(div);
     });
-    
+
     // Переключаем режим формы на окно решения
     document.getElementById('recordForm').setAttribute('data-flow-mode', 'by-order-decision');
-    
+
     updateStatus('Выберите проблему и решение для отправки', '');
 }
 
@@ -835,27 +927,50 @@ function resetByOrderForm(keepBoxCode = false) {
     const itemInput = document.getElementById('byOrderItemInput');
     const orderInput = document.getElementById('byOrderOrderInput');
     const qtyInput = document.getElementById('byOrderQtyInput');
-    
+
     if (boxInput && !keepBoxCode) boxInput.value = '';
     if (itemInput) itemInput.value = '';
     if (orderInput) orderInput.value = '';
     if (qtyInput) qtyInput.value = '1';
-    
+
+    // Сбрасываем выбранный подтип
+    currentPozakaznayaSubtype = 'Сборка';
+    const subtypeBtns = document.querySelectorAll('.subtype-btn');
+    subtypeBtns.forEach(btn => {
+        if (btn.getAttribute('data-subtype') === 'Сборка') {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+
+    const byOrderBoxLabel = document.getElementById('byOrderBoxLabel');
+    if (byOrderBoxLabel) byOrderBoxLabel.textContent = 'Короб';
+    if (boxInput) boxInput.placeholder = 'Отсканируйте короб';
+
+    const summaryBoxLabel = document.getElementById('summaryBoxLabel');
+    const summaryItemsLabel = document.getElementById('summaryItemsLabel');
+    const confirmBoxLabel = document.getElementById('confirmBoxLabel');
+
+    if (summaryBoxLabel) summaryBoxLabel.textContent = '📦 Короб:';
+    if (summaryItemsLabel) summaryItemsLabel.textContent = '🛒 Список товаров в коробе:';
+    if (confirmBoxLabel) confirmBoxLabel.textContent = '📦 Короб:';
+
     // Очищаем добавленные во временный список товары
     addedItems = [];
     renderAddedItemsList();
-    
+
     clearByOrderErrors();
-    
+
     const nextBtn = document.getElementById('byOrderNextBtn');
     if (nextBtn) nextBtn.disabled = true;
-    
+
     // Сбрасываем выбранную проблему
     selectedProblem = null;
     document.querySelectorAll('#byOrderProblemsContainer .option-btn').forEach(btn => {
         btn.classList.remove('selected');
     });
-    
+
     updateStatus('Готов к работе', '');
 }
 
@@ -884,7 +999,7 @@ function handleLogin(e) {
     }
 
     errorEl.textContent = '';
-    
+
     // Блокировка кнопки во время загрузки
     const submitBtn = e.target.querySelector('button[type="submit"]');
     submitBtn.disabled = true;
@@ -895,7 +1010,7 @@ function handleLogin(e) {
         setTimeout(() => {
             submitBtn.disabled = false;
             submitBtn.textContent = 'Войти в систему';
-            
+
             const mockUsers = {
                 '111': { id: '111', name: 'Алексей Смирнов', role: 'Оператор', shift: '1 смена' },
                 '222': { id: '222', name: 'Дмитрий Иванов', role: 'Оператор', shift: '2 смена' },
@@ -926,35 +1041,35 @@ function handleLogin(e) {
                 employeeId: id
             })
         })
-        .then(response => response.json())
-        .then(data => {
-            submitBtn.disabled = false;
-            submitBtn.textContent = 'Войти в систему';
-            
-            if (data.success) {
-                currentUser = {
-                    id: id,
-                    name: data.name,
-                    role: data.role,
-                    shift: data.shift || ""
-                };
-                localStorage.setItem('warehouse_user', JSON.stringify(currentUser));
-                playSound('success');
-                showScreen('zoneScreen');
-                updateUserUI();
-                loadDynamicConfig();
-            } else {
-                errorEl.textContent = data.message || 'Ошибка авторизации';
+            .then(response => response.json())
+            .then(data => {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Войти в систему';
+
+                if (data.success) {
+                    currentUser = {
+                        id: id,
+                        name: data.name,
+                        role: data.role,
+                        shift: data.shift || ""
+                    };
+                    localStorage.setItem('warehouse_user', JSON.stringify(currentUser));
+                    playSound('success');
+                    showScreen('zoneScreen');
+                    updateUserUI();
+                    loadDynamicConfig();
+                } else {
+                    errorEl.textContent = data.message || 'Ошибка авторизации';
+                    playSound('error');
+                }
+            })
+            .catch(err => {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Войти в систему';
+                errorEl.textContent = ' Ошибка сети/подключения к Google Sheets';
+                console.error('Ошибка входа:', err);
                 playSound('error');
-            }
-        })
-        .catch(err => {
-            submitBtn.disabled = false;
-            submitBtn.textContent = 'Войти в систему';
-            errorEl.textContent = ' Ошибка сети/подключения к Google Sheets';
-            console.error('Ошибка входа:', err);
-            playSound('error');
-        });
+            });
     }
 }
 
@@ -999,12 +1114,12 @@ function renderConfigOptions() {
         document.getElementById('potovarkaProblemsContainer'),
         document.getElementById('otgruzkaProblemsContainer')
     ];
-    
+
     problemContainers.forEach(pContainer => {
         if (!pContainer) return;
         pContainer.innerHTML = '';
     });
-    
+
     selectedProblem = null;
 
     // Опеределяем список проблем для текущей зоны
@@ -1016,7 +1131,7 @@ function renderConfigOptions() {
     currentProblems.forEach(prob => {
         problemContainers.forEach(pContainer => {
             if (!pContainer) return;
-            
+
             // Фильтруем контейнеры
             if (currentZone === 'Отгрузка' && pContainer.id !== 'otgruzkaProblemsContainer') return;
             if (currentZone !== 'Отгрузка' && pContainer.id === 'otgruzkaProblemsContainer') return;
@@ -1025,13 +1140,13 @@ function renderConfigOptions() {
             btn.type = 'button';
             btn.className = 'option-btn';
             btn.setAttribute('data-problem', prob);
-            
+
             // Получаем иконку и стиль для проблемы
             const meta = PROBLEM_METADATA[prob] || { icon: '⚠️', class: '' };
             if (meta.class) btn.classList.add(meta.class);
-            
+
             btn.innerHTML = `<span class="option-icon">${meta.icon}</span> ${prob}`;
-            
+
             btn.addEventListener('click', () => {
                 // Снимаем выделение во всех контейнерах проблем
                 document.querySelectorAll('.option-btn').forEach(b => {
@@ -1054,11 +1169,11 @@ function renderConfigOptions() {
         document.getElementById('potovarkaActionsContainer'),
         document.getElementById('otgruzkaActionsContainer')
     ];
-    
+
     actionContainers.forEach(aContainer => {
         if (!aContainer) return;
         aContainer.innerHTML = '';
-        
+
         let currentActions = actionsList;
         if (currentZone === 'Отгрузка') {
             currentActions = [
@@ -1077,11 +1192,11 @@ function renderConfigOptions() {
             btn.className = 'action-submit-btn';
             if (act.class) btn.classList.add(act.class);
             btn.innerHTML = `<span class="action-icon">${act.icon}</span> ${act.name}`;
-            
+
             btn.addEventListener('click', () => {
                 submitRecord(act.name);
             });
-            
+
             aContainer.appendChild(btn);
         });
     });
@@ -1133,13 +1248,13 @@ function submitRecord(actionName, isConfirmed = false) {
             }
             return;
         }
-        
+
         if (actionName === 'Решено') {
             const extraPanel = document.getElementById('otgruzkaExtraInputs');
             if (extraPanel.style.display !== 'block') {
                 extraPanel.style.display = 'block';
                 document.getElementById('otgruzkaOrderInput').focus();
-                
+
                 document.querySelectorAll('#otgruzkaActionsContainer .action-submit-btn').forEach(btn => {
                     if (btn.textContent.includes('Решено')) {
                         btn.classList.add('selected');
@@ -1147,7 +1262,7 @@ function submitRecord(actionName, isConfirmed = false) {
                         btn.classList.remove('selected');
                     }
                 });
-                
+
                 updateStatus('Введите Номер заказа или Номер ГМ', 'warning');
                 return;
             } else {
@@ -1182,17 +1297,17 @@ function submitRecord(actionName, isConfirmed = false) {
     let barcode, qty, boxCode, orderId, inputType, gmNumber = '';
     if (currentZone === 'Позаказная') {
         boxCode = document.getElementById('byOrderBoxInput').value.trim();
-        inputType = 'Позаказная';
-        
+        inputType = currentPozakaznayaSubtype;
+
         // Если полей ввода товара и заказа есть корректные данные, но они не были добавлены, добавим
         const itemVal = document.getElementById('byOrderItemInput').value.trim();
         const orderVal = document.getElementById('byOrderOrderInput').value.trim();
         const isItemValid = /^\d{13}$/.test(itemVal);
-        const isOrderValid = orderVal.startsWith('10-') && orderVal.length >= 4;
+        const isOrderValid = validateOrderFormat(orderVal);
         if (isItemValid && isOrderValid) {
             addCurrentItemToList();
         }
-        
+
         if (addedItems.length === 0) {
             playSound('error');
             updateStatus('Добавьте хотя бы один товар в короб!', 'error');
@@ -1306,11 +1421,11 @@ function submitRecord(actionName, isConfirmed = false) {
                 if (allSuccess) {
                     playSound('success');
                     updateStatus('Все записи успешно сохранены в Google Sheets!', 'success');
-                    
+
                     // Очищаем добавленные во временный список товары
                     addedItems = [];
                     renderAddedItemsList();
-                    
+
                     resetFormAfterSubmit();
                     loadHistory();
                 } else {
@@ -1384,25 +1499,25 @@ function submitRecord(actionName, isConfirmed = false) {
                     gmNumber: recordData.gmNumber
                 })
             })
-            .then(response => response.json())
-            .then(data => {
-                toggleFormControls(false);
-                if (data.success) {
-                    playSound('success');
-                    updateStatus('Запись успешно отправлена в Google Sheets!', 'success');
-                    resetFormAfterSubmit();
-                    loadHistory();
-                } else {
+                .then(response => response.json())
+                .then(data => {
+                    toggleFormControls(false);
+                    if (data.success) {
+                        playSound('success');
+                        updateStatus('Запись успешно отправлена в Google Sheets!', 'success');
+                        resetFormAfterSubmit();
+                        loadHistory();
+                    } else {
+                        playSound('error');
+                        updateStatus(data.message || 'Ошибка сохранения', 'error');
+                    }
+                })
+                .catch(err => {
+                    toggleFormControls(false);
                     playSound('error');
-                    updateStatus(data.message || 'Ошибка сохранения', 'error');
-                }
-            })
-            .catch(err => {
-                toggleFormControls(false);
-                playSound('error');
-                updateStatus(' Ошибка подключения к серверу', 'error');
-                console.error('Ошибка записи:', err);
-            });
+                    updateStatus(' Ошибка подключения к серверу', 'error');
+                    console.error('Ошибка записи:', err);
+                });
         }
     }
 }
@@ -1431,7 +1546,7 @@ function resetLoggingForm(keepBoxCode = false) {
         const barcodeInput = document.getElementById('barcodeInput');
         barcodeInput.value = '';
         document.getElementById('qtyInput').value = '1';
-        
+
         // Сбросить выбор проблемы
         selectedProblem = null;
         document.querySelectorAll('#problemsContainer .option-btn').forEach(btn => {
@@ -1449,11 +1564,11 @@ function resetPotovarkaForm(keepBoxCode = false) {
     const qtyInput = document.getElementById('potovarkaQtyInput');
     if (itemInput) itemInput.value = '';
     if (qtyInput) qtyInput.value = '1';
-    
+
     if (!keepBoxCode && boxInput) {
         boxInput.value = '';
     }
-    
+
     selectedProblem = null;
     document.querySelectorAll('#potovarkaProblemsContainer .option-btn').forEach(btn => {
         btn.classList.remove('selected');
@@ -1470,9 +1585,9 @@ function validatePotovarkaInputs() {
     const boxGroup = document.getElementById('potovarkaBoxGroup');
     const itemError = document.getElementById('potovarkaItemError');
     const boxError = document.getElementById('potovarkaBoxError');
-    
+
     let isValid = true;
-    
+
     const itemVal = itemInput.value.trim();
     const isItemVal = /^\d{13}$/.test(itemVal);
     if (!isItemVal) {
@@ -1483,9 +1598,9 @@ function validatePotovarkaInputs() {
         itemGroup.classList.remove('invalid');
         itemError.textContent = '';
     }
-    
+
     const boxVal = boxInput.value.trim();
-    const isBoxVal = (boxVal.startsWith('80-') && boxVal.length >= 4) || boxVal === 'Короб не определен';
+    const isBoxVal = (boxVal.startsWith('80-') && boxVal.length === 13) || boxVal === 'Короб не определен';
     if (!isBoxVal) {
         boxGroup.classList.add('invalid');
         boxError.textContent = 'ШК короба введен не правильно';
@@ -1494,7 +1609,7 @@ function validatePotovarkaInputs() {
         boxGroup.classList.remove('invalid');
         boxError.textContent = '';
     }
-    
+
     return isValid;
 }
 
@@ -1514,12 +1629,12 @@ function resetOtgruzkaForm() {
     const qtyInput = document.getElementById('otgruzkaQtyInput');
     const orderInput = document.getElementById('otgruzkaOrderInput');
     const gmInput = document.getElementById('otgruzkaGmInput');
-    
+
     if (itemInput) itemInput.value = '';
     if (qtyInput) qtyInput.value = '1';
     if (orderInput) orderInput.value = '';
     if (gmInput) gmInput.value = '';
-    
+
     // Сбросить выбор проблемы
     selectedProblem = null;
     document.querySelectorAll('#otgruzkaProblemsContainer .option-btn').forEach(btn => {
@@ -1538,9 +1653,9 @@ function validateOtgruzkaInputs() {
     const itemInput = document.getElementById('otgruzkaItemInput');
     const itemGroup = document.getElementById('otgruzkaItemGroup');
     const itemError = document.getElementById('otgruzkaItemError');
-    
+
     let isValid = true;
-    
+
     // 1. ШК товара
     const itemVal = itemInput.value.trim();
     const isItemVal = /^\d{13}$/.test(itemVal);
@@ -1552,7 +1667,7 @@ function validateOtgruzkaInputs() {
         itemGroup.classList.remove('invalid');
         itemError.textContent = '';
     }
-    
+
     return isValid;
 }
 
@@ -1563,18 +1678,18 @@ function validateOtgruzkaExtraInputs() {
     const gmGroup = document.getElementById('otgruzkaGmGroup');
     const orderError = document.getElementById('otgruzkaOrderError');
     const gmError = document.getElementById('otgruzkaGmError');
-    
+
     const orderVal = orderInput.value.trim();
     const gmVal = gmInput.value.trim();
-    
+
     let isValid = true;
-    
+
     // Сброс старых ошибок
     if (orderGroup) orderGroup.classList.remove('invalid');
     if (gmGroup) gmGroup.classList.remove('invalid');
     if (orderError) orderError.textContent = '';
     if (gmError) gmError.textContent = '';
-    
+
     // Должно быть заполнено хотя бы одно из двух полей
     if (orderVal === '' && gmVal === '') {
         playSound('error');
@@ -1586,16 +1701,16 @@ function validateOtgruzkaExtraInputs() {
     } else {
         // Если номер заказа введен, он должен начинаться с 10- и быть длиной >= 4
         if (orderVal !== '') {
-            const isOrderValid = orderVal.startsWith('10-') && orderVal.length >= 4;
+            const isOrderValid = validateOrderFormat(orderVal);
             if (!isOrderValid) {
                 playSound('error');
                 if (orderGroup) orderGroup.classList.add('invalid');
-                if (orderError) orderError.textContent = 'Формат заказа неверный (должен начинаться на 10-)';
+                if (orderError) orderError.textContent = 'Формат заказа неверный (должен начинаться на 10- и не содержать русские буквы)';
                 isValid = false;
             }
         }
     }
-    
+
     return isValid;
 }
 
@@ -1606,7 +1721,7 @@ function clearOtgruzkaErrors() {
     const itemError = document.getElementById('otgruzkaItemError');
     const orderError = document.getElementById('otgruzkaOrderError');
     const gmError = document.getElementById('otgruzkaGmError');
-    
+
     if (itemGroup) itemGroup.classList.remove('invalid');
     if (orderGroup) orderGroup.classList.remove('invalid');
     if (gmGroup) gmGroup.classList.remove('invalid');
@@ -1618,8 +1733,8 @@ function clearOtgruzkaErrors() {
 function resetFormAfterSubmit() {
     // В потоварке и отгрузке короб не сохраняем (сбрасываем оба поля по ТЗ)
     const keepBox = currentZone === 'Позаказная';
-    resetLoggingForm(keepBox); 
-    
+    resetLoggingForm(keepBox);
+
     if (currentZone === 'Позаказная') {
         document.getElementById('recordForm').setAttribute('data-flow-mode', 'by-order-acceptance');
         setTimeout(() => {
@@ -1634,7 +1749,7 @@ function resetFormAfterSubmit() {
 // --- ИСТОРИЯ ЗАПИСЕЙ ---
 function loadHistory() {
     const historyList = document.getElementById('historyList');
-    
+
     if (CONFIG.isDemoMode) {
         const localLogs = JSON.parse(localStorage.getItem('demo_logs') || '[]');
         renderHistoryItems(localLogs);
@@ -1664,7 +1779,7 @@ function renderHistoryItems(logs) {
     logs.slice(0, 10).forEach(log => {
         const item = document.createElement('div');
         item.className = 'history-item';
-        
+
         // Разделяем время для вывода
         const timeParts = log.timestamp ? log.timestamp.split(/[\s,]+/) : [];
         const timeStr = timeParts.length > 1 ? timeParts[1] : (log.timestamp || '');
@@ -1695,7 +1810,7 @@ function renderHistoryItems(logs) {
 // --- ОКНО ПОДТВЕРЖДЕНИЯ (MODAL UI) ---
 function showConfirmModal(data) {
     document.getElementById('confirmZone').textContent = data.zone;
-    
+
     const boxRow = document.getElementById('confirmBox').parentElement;
     if (data.boxCode) {
         document.getElementById('confirmBox').textContent = data.boxCode;
@@ -1703,18 +1818,18 @@ function showConfirmModal(data) {
     } else {
         boxRow.classList.add('hidden');
     }
-    
+
     const confirmItemRow = document.getElementById('confirmItemRow');
     const confirmOrderRow = document.getElementById('confirmOrderRow');
     const confirmQtyRow = document.getElementById('confirmQtyRow');
     const confirmItemsListRow = document.getElementById('confirmItemsListRow');
-    
+
     if (data.zone === 'Позаказная') {
         confirmItemRow.classList.add('hidden');
         confirmOrderRow.classList.add('hidden');
         confirmQtyRow.classList.add('hidden');
         confirmItemsListRow.classList.remove('hidden');
-        
+
         const listContainer = document.getElementById('confirmItemsList');
         listContainer.innerHTML = '';
         addedItems.forEach(item => {
@@ -1731,7 +1846,7 @@ function showConfirmModal(data) {
         confirmItemRow.classList.remove('hidden');
         confirmQtyRow.classList.remove('hidden');
         confirmItemsListRow.classList.add('hidden');
-        
+
         document.getElementById('confirmItem').textContent = data.barcode;
         document.getElementById('confirmQty').textContent = data.qty;
 
@@ -1752,13 +1867,13 @@ function showConfirmModal(data) {
             confirmGmRow.classList.add('hidden');
         }
     }
-    
+
     const probMeta = PROBLEM_METADATA[data.problem] || { icon: '⚠️' };
     document.getElementById('confirmProblem').textContent = `${probMeta.icon} ${data.problem}`;
-    
+
     const actMeta = actionsList.find(a => a.name === data.action) || { icon: '⚙️' };
     document.getElementById('confirmAction').textContent = `${actMeta.icon} ${data.action}`;
-    
+
     document.getElementById('confirmModal').classList.add('active');
 }
 
@@ -1773,12 +1888,12 @@ function addCurrentItemToList() {
     const itemInput = document.getElementById('byOrderItemInput');
     const orderInput = document.getElementById('byOrderOrderInput');
     const qtyInput = document.getElementById('byOrderQtyInput');
-    
+
     const boxVal = boxInput.value.trim();
     const itemVal = itemInput.value.trim();
     const orderVal = orderInput.value.trim();
     const qtyVal = parseInt(qtyInput.value) || 1;
-    
+
     const validity = checkByOrderInputsValidity();
     if (!validity.isBoxValid) {
         playSound('error');
@@ -1798,7 +1913,7 @@ function addCurrentItemToList() {
         document.getElementById('byOrderOrderError').textContent = 'Номер заказа введен не правильно';
         return false;
     }
-    
+
     // Проверим дубликаты
     const exists = addedItems.some(i => i.barcode === itemVal && i.orderId === orderVal);
     if (exists) {
@@ -1806,28 +1921,28 @@ function addCurrentItemToList() {
         updateStatus('Этот товар с таким заказом уже добавлен!', 'error');
         return false;
     }
-    
+
     addedItems.push({
         barcode: itemVal,
         orderId: orderVal,
         qty: qtyVal
     });
-    
+
     playSound('success');
-    
+
     // Очищаем поля ввода товара и заказа
     itemInput.value = '';
     orderInput.value = '';
     qtyInput.value = '1';
-    
+
     renderAddedItemsList();
-    
+
     // Возвращаем фокус на поле ввода товара
     itemInput.focus();
-    
+
     clearByOrderErrors();
     checkByOrderInputsValidity();
-    
+
     updateStatus('Товар успешно добавлен в список', 'success');
     return true;
 }
@@ -1835,16 +1950,16 @@ function addCurrentItemToList() {
 function renderAddedItemsList() {
     const listGroup = document.getElementById('byOrderItemsListGroup');
     const listContainer = document.getElementById('byOrderItemsList');
-    
+
     if (addedItems.length === 0) {
         listGroup.classList.add('hidden');
         listContainer.innerHTML = '';
         return;
     }
-    
+
     listGroup.classList.remove('hidden');
     listContainer.innerHTML = '';
-    
+
     addedItems.forEach((item, index) => {
         const row = document.createElement('div');
         row.className = 'added-item-row';
@@ -1855,7 +1970,7 @@ function renderAddedItemsList() {
             </div>
             <button type="button" class="added-item-remove" data-index="${index}">🗑️</button>
         `;
-        
+
         row.querySelector('.added-item-remove').addEventListener('click', (e) => {
             const idx = parseInt(e.currentTarget.getAttribute('data-index'));
             addedItems.splice(idx, 1);
@@ -1863,7 +1978,7 @@ function renderAddedItemsList() {
             renderAddedItemsList();
             checkByOrderInputsValidity();
         });
-        
+
         listContainer.appendChild(row);
     });
 }

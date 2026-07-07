@@ -445,6 +445,39 @@ input[type="text"]:focus, input[type="number"]:focus {
     font-size: 18px;
 }
 
+/* Под-режимы внутри Позаказной */
+.pozakaznaya-subtypes {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: var(--border-radius-md);
+    padding: 4px;
+    margin-bottom: 24px;
+    border: 1px solid rgba(127, 62, 255, 0.1);
+}
+
+.subtype-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 13px;
+    padding: 10px 4px;
+    cursor: pointer;
+    border-radius: 12px;
+    transition: var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.subtype-btn.active {
+    background: var(--primary-color);
+    color: var(--text-inverse);
+    box-shadow: 0 4px 10px rgba(127, 62, 255, 0.25);
+}
+
 /* Обёртка ввода с хелпером */
 .input-wrapper {
     position: relative;
