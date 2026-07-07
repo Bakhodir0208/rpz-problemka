@@ -388,7 +388,7 @@ function setupEventListeners() {
     const byOrderNextBtn = document.getElementById('byOrderNextBtn');
     const byOrderBackBtn = document.getElementById('byOrderBackBtn');
 
-    // Под-режимы Позаказной (Сборка / Сорт. 1 / Сорт. 2 / Упаковка)
+    // Под-режимы Позаказной (Сборка / Сорт. 1 / Сорт. 2)
     const subtypeBtns = document.querySelectorAll('.subtype-btn');
     const byOrderBoxLabel = document.getElementById('byOrderBoxLabel');
     subtypeBtns.forEach(btn => {
@@ -405,7 +405,7 @@ function setupEventListeners() {
             const summaryItemsLabel = document.getElementById('summaryItemsLabel');
             const confirmBoxLabel = document.getElementById('confirmBoxLabel');
 
-            if (currentPozakaznayaSubtype === 'Упаковка') {
+            if (currentPozakaznayaSubtype === 'Сортировка 2') {
                 if (byOrderBoxLabel) byOrderBoxLabel.textContent = 'Номер ячейки';
                 byOrderBoxInput.placeholder = 'Введите или отсканируйте номер ячейки';
                 if (summaryBoxLabel) summaryBoxLabel.textContent = '📦 Ячейка:';
@@ -453,7 +453,7 @@ function setupEventListeners() {
         if (val !== '') {
             let isValid = false;
             let errorMsg = '';
-            if (currentPozakaznayaSubtype === 'Упаковка') {
+            if (currentPozakaznayaSubtype === 'Сортировка 2') {
                 isValid = /^\d+\.\d+\.\d+\.\d+$/.test(val);
                 errorMsg = 'Номер ячейки введен не правильно';
             } else {
@@ -499,7 +499,7 @@ function setupEventListeners() {
             const val = e.target.value.trim();
             let isValid = false;
             let errorMsg = '';
-            if (currentPozakaznayaSubtype === 'Упаковка') {
+            if (currentPozakaznayaSubtype === 'Сортировка 2') {
                 isValid = /^\d+\.\d+\.\d+\.\d+$/.test(val);
                 errorMsg = 'Номер ячейки введен не правильно';
             } else {
@@ -860,7 +860,7 @@ function checkByOrderInputsValidity() {
     const orderVal = orderInput.value.trim();
 
     let isBoxValid = false;
-    if (currentPozakaznayaSubtype === 'Упаковка') {
+    if (currentPozakaznayaSubtype === 'Сортировка 2') {
         isBoxValid = /^\d+\.\d+\.\d+\.\d+$/.test(boxVal);
     } else {
         isBoxValid = boxVal.startsWith('80-') && boxVal.length === 13;
@@ -1898,7 +1898,7 @@ function addCurrentItemToList() {
     if (!validity.isBoxValid) {
         playSound('error');
         document.getElementById('byOrderBoxGroup').classList.add('invalid');
-        document.getElementById('byOrderBoxError').textContent = 'ШК короба введен не правильно';
+        document.getElementById('byOrderBoxError').textContent = (currentPozakaznayaSubtype === 'Сортировка 2') ? 'Номер ячейки введен не правильно' : 'ШК короба введен не правильно';
         return false;
     }
     if (!validity.isItemValid) {
